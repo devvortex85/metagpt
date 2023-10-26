@@ -375,7 +375,7 @@ class GenActionDetails(STAction):
         if not role.s_mem.get_str_accessible_arena_game_objects(act_address):
             act_game_object = "<random>"
         else:
-            act_game_object = await GenActionObject().run(role, act_desp, act_address)
+            act_game_object = GenActionObject().run(role, act_desp, act_address)
         new_address = f"{act_world}:{act_sector}:{act_arena}:{act_game_object}"
         act_pron = await GenPronunciatio().run(role, act_desp)
         act_event = await GenEventTriple().run(role, act_desp)

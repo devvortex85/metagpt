@@ -61,18 +61,20 @@ class STAction(Action):
     async def _run_gpt35_max_tokens(self, prompt: str, max_tokens: int = 50, retry: int = 3):
         for idx in range(retry):
             try:
-                tmp_max_tokens_rsp = getattr(self.config.llm, "max_token", 1500)
-                setattr(self.config.llm, "max_token", max_tokens)
-                self.llm.use_system_prompt = False  # to make it behave like a non-chat completions
+                tmp_model_name = self.llm.model
+                tmp_max_tokens_rsp = CONFIG.max_tokens_rsp
+                CONFIG.max_tokens_rsp = max_tokens
+                self.llm.model = model_name
 
-                llm_resp = await self._aask(prompt)
+                llm_resp = self._ask_nonchat(prompt)
 
-                setattr(self.config.llm, "max_token", tmp_max_tokens_rsp)
-                logger.info(f"Action: {self.cls_name} llm _run_gpt35_max_tokens raw resp: {llm_resp}")
+                CONFIG.max_tokens_rsp = tmp_max_tokens_rsp
+                self.llm.model = tmp_model_name
+                logger.info(f"Action: {self.cls_name} llm _run_text_davinci raw resp: {llm_resp}")
                 if self._func_validate(llm_resp, prompt):
                     return self._func_cleanup(llm_resp, prompt)
             except Exception as exp:
-                logger.warning(f"Action: {self.cls_name} _run_gpt35_max_tokens exp: {exp}")
+                logger.warning(f"Action: {self.cls_name} _run_text_davinci exp: {exp}")
                 time.sleep(5)
         return self.fail_default_resp
 
