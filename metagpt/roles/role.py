@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Iterable, Optional, Set, Type, Union
+from typing import TYPE_CHECKING, Iterable, Optional, Set, Type, Union
 
 from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, model_validator
 
@@ -47,6 +47,10 @@ from metagpt.schema import (
 from metagpt.strategy.planner import Planner
 from metagpt.utils.common import any_to_name, any_to_str, role_raise_decorator
 from metagpt.utils.repair_llm_raw_output import extract_state_value_from_output
+
+if TYPE_CHECKING:
+    from metagpt.environment import Environment  # noqa: F401
+
 
 PREFIX_TEMPLATE = """You are a {profile}, named {name}, your goal is {goal}. """
 CONSTRAINT_TEMPLATE = "the constraint is {constraints}. "
@@ -120,6 +124,13 @@ class RoleContext(BaseModel):
     @property
     def history(self) -> list[Message]:
         return self.memory.get()
+
+    @classmethod
+    def model_rebuild(cls, **kwargs):
+        # https://stackoverflow.com/questions/63420889/fastapi-pydantic-circular-references-in-separate-files
+        from metagpt.environment import Environment  # noqa: F401
+
+        super().model_rebuild(**kwargs)
 
 
 class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
@@ -590,3 +601,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         if self.actions:
             return any_to_name(self.actions[0])
         return ""
+
+
+RoleContext.model_rebuild()
