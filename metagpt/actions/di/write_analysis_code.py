@@ -41,11 +41,13 @@ class WriteAnalysisCode(Action):
         working_memory: list[Message] = None,
         use_reflection: bool = False,
         memory: list[Message] = None,
+        experiences: str = "",
         **kwargs,
     ) -> str:
         structual_prompt = STRUCTUAL_PROMPT.format(
             user_requirement=user_requirement,
             plan_status=plan_status,
+            experiences=experiences,
             tool_info=tool_info,
         )
 
