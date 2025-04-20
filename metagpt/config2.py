@@ -9,12 +9,17 @@ import os
 from pathlib import Path
 from typing import Dict, Iterable, List, Literal, Optional
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from metagpt.configs.browser_config import BrowserConfig
+from metagpt.configs.embedding_config import EmbeddingConfig
+from metagpt.configs.exp_pool_config import ExperiencePoolConfig
 from metagpt.configs.llm_config import LLMConfig, LLMType
 from metagpt.configs.mermaid_config import MermaidConfig
+from metagpt.configs.omniparse_config import OmniParseConfig
 from metagpt.configs.redis_config import RedisConfig
+from metagpt.configs.role_custom_config import RoleCustomConfig
+from metagpt.configs.role_zero_config import RoleZeroConfig
 from metagpt.configs.s3_config import S3Config
 from metagpt.configs.search_config import SearchConfig
 from metagpt.configs.workspace_config import WorkspaceConfig
@@ -47,11 +52,18 @@ class Config(CLIParams, YamlModel):
     # Key Parameters
     llm: LLMConfig
 
+    # RAG Embedding
+    embedding: EmbeddingConfig = EmbeddingConfig()
+
+    # omniparse
+    omniparse: OmniParseConfig = OmniParseConfig()
+
     # Global Proxy. Will be used if llm.proxy is not set
     proxy: str = ""
 
     # Tool Parameters
     search: SearchConfig = SearchConfig()
+    enable_search: bool = False
     browser: BrowserConfig = BrowserConfig()
     mermaid: MermaidConfig = MermaidConfig()
 
@@ -62,9 +74,12 @@ class Config(CLIParams, YamlModel):
     # Misc Parameters
     repair_llm_output: bool = False
     prompt_schema: Literal["json", "markdown", "raw"] = "json"
-    workspace: WorkspaceConfig = WorkspaceConfig()
+    workspace: WorkspaceConfig = Field(default_factory=WorkspaceConfig)
     enable_longterm_memory: bool = False
-    code_review_k_times: int = 2
+    code_validate_k_times: int = 2
+
+    # Experience Pool Parameters
+    exp_pool: ExperiencePoolConfig = Field(default_factory=ExperiencePoolConfig)
 
     # Will be removed in the future
     metagpt_tti_url: str = ""
@@ -75,6 +90,13 @@ class Config(CLIParams, YamlModel):
     iflytek_api_key: str = ""
     azure_tts_subscription_key: str = ""
     azure_tts_region: str = ""
+    _extra: dict = dict()  # extra config dict
+
+    # Role's custom configuration
+    roles: Optional[List[RoleCustomConfig]] = None
+
+    # RoleZero's configuration
+    role_zero: RoleZeroConfig = Field(default_factory=RoleZeroConfig)
 
     @classmethod
     def from_home(cls, path):
@@ -85,18 +107,32 @@ class Config(CLIParams, YamlModel):
         return Config.from_yaml_file(pathname)
 
     @classmethod
-    def default(cls):
+    def default(cls, reload: bool = False, **kwargs) -> "Config":
         """Load default config
         - Priority: env < default_config_paths
         - Inside default_config_paths, the latter one overwrites the former one
         """
-        default_config_paths: List[Path] = [
+        default_config_paths = (
             METAGPT_ROOT / "config/config2.yaml",
-            Path.home() / ".metagpt/config2.yaml",
-        ]
+            CONFIG_ROOT / "config2.yaml",
+        )
+        if reload or default_config_paths not in _CONFIG_CACHE:
+            dicts = [dict(os.environ), *(Config.read_yaml(path) for path in default_config_paths), kwargs]
+            final = merge_dict(dicts)
+            _CONFIG_CACHE[default_config_paths] = Config(**final)
+        return _CONFIG_CACHE[default_config_paths]
 
+    @classmethod
+    def from_llm_config(cls, llm_config: dict):
+        """user config llm
+        example:
+        llm_config = {"api_type": "xxx", "api_key": "xxx", "model": "xxx"}
+        gpt4 = Config.from_llm_config(llm_config)
+        A = Role(name="A", profile="Democratic candidate", goal="Win the election", actions=[a1], watch=[a2], config=gpt4)
+        """
+        llm_config = LLMConfig.model_validate(llm_config)
         dicts = [dict(os.environ)]
-        dicts += [Config.read_yaml(path) for path in default_config_paths]
+        dicts += [{"llm": llm_config}]
         final = merge_dict(dicts)
         return Config(**final)
 
@@ -112,6 +148,14 @@ class Config(CLIParams, YamlModel):
         self.inc = inc
         self.reqa_file = reqa_file
         self.max_auto_summarize_code = max_auto_summarize_code
+
+    @property
+    def extra(self):
+        return self._extra
+
+    @extra.setter
+    def extra(self, value: dict):
+        self._extra = value
 
     def get_openai_llm(self) -> Optional[LLMConfig]:
         """Get OpenAI LLMConfig by name. If no OpenAI, raise Exception"""
@@ -134,4 +178,5 @@ def merge_dict(dicts: Iterable[Dict]) -> Dict:
     return result
 
 
+_CONFIG_CACHE = {}
 config = Config.default()

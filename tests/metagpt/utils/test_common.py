@@ -13,7 +13,6 @@ import uuid
 from pathlib import Path
 from typing import Any, Set
 
-import aiofiles
 import pytest
 from pydantic import BaseModel
 
@@ -30,6 +29,8 @@ from metagpt.utils.common import (
     awrite,
     check_cmd_exists,
     concat_namespace,
+    extract_and_encode_images,
+    extract_image_paths,
     import_class_inst,
     parse_recipient,
     print_members,
@@ -125,9 +126,7 @@ class TestGetProjectRoot:
     async def test_parse_data_exception(self, filename, want):
         pathname = Path(__file__).parent.parent.parent / "data/output_parser" / filename
         assert pathname.exists()
-        async with aiofiles.open(str(pathname), mode="r") as reader:
-            data = await reader.read()
-
+        data = await aread(filename=pathname)
         result = OutputParser.parse_data(data=data)
         assert want in result
 
@@ -178,7 +177,7 @@ class TestGetProjectRoot:
         ],
     )
     def test_split_namespace(self, val, want):
-        res = split_namespace(val)
+        res = split_namespace(val, maxsplit=-1)
         assert res == want
 
     def test_read_json_file(self):
@@ -198,11 +197,42 @@ class TestGetProjectRoot:
 
     @pytest.mark.asyncio
     async def test_read_write(self):
-        pathname = Path(__file__).parent / uuid.uuid4().hex / "test.tmp"
+        pathname = Path(__file__).parent / f"../../../workspace/unittest/{uuid.uuid4().hex}" / "test.tmp"
         await awrite(pathname, "ABC")
         data = await aread(pathname)
         assert data == "ABC"
         pathname.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_read_write_error_charset(self):
+        pathname = Path(__file__).parent / f"../../../workspace/unittest/{uuid.uuid4().hex}" / "test.txt"
+        content = "中国abc123\u27f6"
+        await awrite(filename=pathname, data=content)
+        data = await aread(filename=pathname)
+        assert data == content
+
+        content = "GB18030 是中国国家标准局发布的新一代中文字符集标准，是 GBK 的升级版，支持更广泛的字符范围。"
+        await awrite(filename=pathname, data=content, encoding="gb2312")
+        data = await aread(filename=pathname, encoding="utf-8")
+        assert data == content
+
+
+def test_extract_image_paths():
+    content = """
+    Here are some image paths /home/user/images/photo1.jpg /home/user/images/photo2.png
+    # /absolute/path/to/image.gif"""
+    assert extract_image_paths(content) == [
+        "/home/user/images/photo1.jpg",
+        "/home/user/images/photo2.png",
+        "/absolute/path/to/image.gif",
+    ]
+
+    content = "no image path"
+    assert not extract_image_paths(content)
+
+
+def test_extract_and_encode_images():
+    assert not extract_and_encode_images("a non-existing.jpg")
 
 
 if __name__ == "__main__":

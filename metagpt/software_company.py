@@ -2,15 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-import shutil
 from pathlib import Path
 
 import typer
 
-from metagpt.config2 import config
-from metagpt.const import CONFIG_ROOT, METAGPT_ROOT
-from metagpt.context import Context
-from metagpt.utils.project_repo import ProjectRepo
+from metagpt.const import CONFIG_ROOT
 
 app = typer.Typer(add_completion=False, pretty_exceptions_show_locals=False)
 
@@ -28,14 +24,16 @@ def generate_repo(
     reqa_file="",
     max_auto_summarize_code=0,
     recover_path=None,
-) -> ProjectRepo:
+):
     """Run the startup logic. Can be called from CLI or other Python scripts."""
+    from metagpt.config2 import config
+    from metagpt.context import Context
     from metagpt.roles import (
         Architect,
-        Engineer,
+        DataAnalyst,
+        Engineer2,
         ProductManager,
-        ProjectManager,
-        QaEngineer,
+        TeamLeader,
     )
     from metagpt.team import Team
 
@@ -46,17 +44,22 @@ def generate_repo(
         company = Team(context=ctx)
         company.hire(
             [
+                TeamLeader(),
                 ProductManager(),
                 Architect(),
-                ProjectManager(),
+                Engineer2(),
+                # ProjectManager(),
+                DataAnalyst(),
             ]
         )
 
-        if implement or code_review:
-            company.hire([Engineer(n_borg=5, use_code_review=code_review)])
-
-        if run_tests:
-            company.hire([QaEngineer()])
+        # if implement or code_review:
+        #     company.hire([Engineer(n_borg=5, use_code_review=code_review)])
+        #
+        # if run_tests:
+        #     company.hire([QaEngineer()])
+        #     if n_round < 8:
+        #         n_round = 8  # If `--run-tests` is enabled, at least 8 rounds are required to run all QA actions.
     else:
         stg_path = Path(recover_path)
         if not stg_path.exists() or not str(stg_path).endswith("team"):
@@ -66,10 +69,9 @@ def generate_repo(
         idea = company.idea
 
     company.invest(investment)
-    company.run_project(idea)
-    asyncio.run(company.run(n_round=n_round))
+    asyncio.run(company.run(n_round=n_round, idea=idea))
 
-    return ctx.repo
+    return ctx.kwargs.get("project_path")
 
 
 @app.command("", help="Start a new project.")
@@ -122,7 +124,18 @@ def startup(
     )
 
 
-def copy_config_to(config_path=METAGPT_ROOT / "config" / "config2.yaml"):
+DEFAULT_CONFIG = """# Full Example: https://github.com/geekan/MetaGPT/blob/main/config/config2.example.yaml
+# Reflected Code: https://github.com/geekan/MetaGPT/blob/main/metagpt/config2.py
+# Config Docs: https://docs.deepwisdom.ai/main/en/guide/get_started/configuration.html
+llm:
+  api_type: "openai"  # or azure / ollama / groq etc.
+  model: "gpt-4-turbo"  # or gpt-3.5-turbo
+  base_url: "https://api.openai.com/v1"  # or forward url / other llm url
+  api_key: "YOUR_API_KEY"
+"""
+
+
+def copy_config_to():
     """Initialize the configuration file for MetaGPT."""
     target_path = CONFIG_ROOT / "config2.yaml"
 
@@ -136,7 +149,7 @@ def copy_config_to(config_path=METAGPT_ROOT / "config" / "config2.yaml"):
         print(f"Existing configuration file backed up at {backup_path}")
 
     # 复制文件
-    shutil.copy(str(config_path), target_path)
+    target_path.write_text(DEFAULT_CONFIG, encoding="utf-8")
     print(f"Configuration file initialized at {target_path}")
 
 
