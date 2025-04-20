@@ -31,6 +31,11 @@ def convert_code_to_tool_schema(obj, include: list[str] = None) -> dict:
 def convert_code_to_tool_schema_ast(code: str) -> list[dict]:
     """Converts a code string to a list of tool schemas by parsing the code with AST"""
 
+    # Modify the AST nodes to include parent references, enabling to attach methods to their class
+    def add_parent_references(node, parent=None):
+        for child in ast.iter_child_nodes(node):
+            child.parent = parent
+            add_parent_references(child, parent=node)
     visitor = CodeVisitor(code)
     parsed_code = ast.parse(code)
     visitor.visit(parsed_code)
@@ -100,7 +105,7 @@ class CodeVisitor(ast.NodeVisitor):
         self._visit_function(node)
 
     def _visit_function(self, node):
-        if node.name.startswith("_"):
+        if isinstance(node.parent, ast.ClassDef) or node.name.startswith("_"):
             return
         function_schemas = self._get_function_schemas(node)
         function_schemas["code"] = ast.get_source_segment(self.source_code, node)
