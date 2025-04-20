@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, create_model, model_validator
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from metagpt.actions.action_outcls_registry import register_action_outcls
+from metagpt.actions.code_sanitize import sanitize
 from metagpt.const import MARKDOWN_TITLE_PREFIX, USE_CONFIG_TIMEOUT
 from metagpt.exp_pool import exp_cache
 from metagpt.exp_pool.serializers import ActionNodeSerializer
@@ -41,6 +42,7 @@ class ReviseMode(Enum):
 
 
 TAG = "CONTENT"
+MODE_CODE_FILL = "code_fill"
 
 
 class FillMode(Enum):
@@ -594,6 +596,14 @@ class ActionNode:
         return extracted_data
 
     @exp_cache(serializer=ActionNodeSerializer())
+    async def messages_fill(
+        self,
+    ):
+        """
+        参考这个代码，只不过LLM调用方式改成使用；
+        参考
+        """
+        pass
     async def fill(
         self,
         *,
